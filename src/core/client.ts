@@ -103,10 +103,35 @@ export function createClient(auth: LinkedInAuth): LinkedInClient {
           headers,
           body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
           signal: controller.signal,
+          redirect: 'manual',
         });
 
         clearTimeout(timeout);
         lastRequestTime = Date.now();
+
+        // LinkedIn often responds with redirects for expired sessions or verification walls.
+        // Handle them explicitly instead of letting fetch hide them as "redirect count exceeded".
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get('location') ?? '';
+
+          if (location.includes('/checkpoint/') || location.includes('/challenge/')) {
+            throw new ChallengeError();
+          }
+
+          if (
+            location.includes('/login') ||
+            location.includes('/uas/') ||
+            location === url
+          ) {
+            throw new AuthError('Session redirected by LinkedIn. Run: linkedin login');
+          }
+
+          throw new LinkedInError(
+            `LinkedIn redirected request to: ${location || 'unknown location'}`,
+            'REDIRECT_ERROR',
+            response.status,
+          );
+        }
 
         // Check for challenge / restricted page (only on non-OK responses)
         const contentType = response.headers.get('content-type') ?? '';
