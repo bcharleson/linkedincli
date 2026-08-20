@@ -46,11 +46,28 @@ export interface GlobalOptions {
   pretty?: boolean;
   quiet?: boolean;
   fields?: string;
+  fromChrome?: boolean;
+  chromeProfile?: string;
+  liAt?: string;
+  jsessionid?: string;
+}
+
+export interface AuthFlags {
+  liAt?: string;
+  jsessionid?: string;
+  fromChrome?: boolean;
+  chromeProfile?: string;
 }
 
 export interface LinkedInAuth {
   liAt: string;
   jsessionid: string;
+  /**
+   * Full cookie header with all linkedin.com cookies. When present, the HTTP
+   * client uses this instead of synthesizing a minimal `li_at; JSESSIONID`
+   * pair — LinkedIn's anti-abuse can invalidate sessions that send a thin jar.
+   */
+  cookieHeader?: string;
 }
 
 export interface LinkedInClient {

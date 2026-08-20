@@ -12,9 +12,20 @@ LINKEDIN_LI_AT=<your li_at cookie>
 LINKEDIN_JSESSIONID=<your JSESSIONID cookie>
 ```
 
+Optional session-survival settings (see README). Default Node `fetch` is often TLS-fingerprinted and LinkedIn may invalidate `li_at` immediately:
+
+```
+LINKEDIN_HTTP=curl-impersonate          # use curl_chrome123 (opt-in)
+LINKEDIN_CURL_IMPERSONATE_BIN=...       # override binary path
+LINKEDIN_FROM_CHROME=1                  # read cookies from a local Chrome profile
+LINKEDIN_CHROME_PROFILE=Default         # Chrome profile directory name
+```
+
+CLI equivalents: `--from-chrome`, `--chrome-profile <name>`.
+
 To check if the session is valid:
 ```bash
-linkedin status
+linkedin status --verify
 ```
 
 ---
@@ -532,16 +543,13 @@ linkedin search jobs --keywords "engineer" --location "San Francisco" --job-type
 ---
 
 #### `search_posts`
-Search for posts/content.
+Keyword post search is **unavailable**. LinkedIn's CONTENT resultType on `voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0` returns HTTP 200 with only a `FeedbackCard`. No replacement content-search `queryId` has been verified from public sources (do not invent one).
+
+For posts **by a known member**, use `profile posts` (`profileUpdatesV2`):
 ```bash
-linkedin search posts --keywords "AI trends 2026"
+linkedin profile posts ACoAABxxxxxxx --limit 20
 ```
-**Parameters:**
-| Name | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `keywords` | string | yes | — | Search keywords |
-| `limit` | number | no | 10 | Results per page (max 49) |
-| `start` | number | no | 0 | Pagination offset |
+`search posts` exits with code `SEARCH_UNAVAILABLE` and the same guidance.
 
 ---
 

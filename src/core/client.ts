@@ -1,4 +1,6 @@
 import type { LinkedInAuth, LinkedInClient } from './types.js';
+import { httpRequest } from './transport.js';
+import { classifyLinkedInRedirect } from './redirects.js';
 import {
   AuthError,
   ChallengeError,
@@ -32,9 +34,14 @@ export function generateTrackingId(): string {
 export function createClient(auth: LinkedInAuth): LinkedInClient {
   const csrfToken = auth.jsessionid.replace(/"/g, '');
 
+  const cookieHeader =
+    auth.cookieHeader && auth.cookieHeader.includes('li_at=')
+      ? auth.cookieHeader
+      : `JSESSIONID="${csrfToken}"; li_at=${auth.liAt}`;
+
   const baseHeaders: Record<string, string> = {
     'csrf-token': csrfToken,
-    cookie: `JSESSIONID="${csrfToken}"; li_at=${auth.liAt}`,
+    cookie: cookieHeader,
     'user-agent':
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     accept: 'application/vnd.linkedin.normalized+json+2.1',
@@ -42,12 +49,15 @@ export function createClient(auth: LinkedInAuth): LinkedInClient {
     'x-li-lang': 'en_US',
     'x-restli-protocol-version': '2.0.0',
     'x-li-track': JSON.stringify({
-      clientVersion: '1.13.21',
+      clientVersion: '1.13.36',
+      mpVersion: '1.13.36',
       osName: 'web',
       timezoneOffset: new Date().getTimezoneOffset() / -60,
       deviceFormFactor: 'DESKTOP',
       mpName: 'voyager-web',
+      displayDensity: 2,
     }),
+    referer: 'https://www.linkedin.com/feed/',
   };
 
   let lastRequestTime = 0;
@@ -98,7 +108,7 @@ export function createClient(auth: LinkedInAuth): LinkedInClient {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-        const response = await fetch(url, {
+        const response = await httpRequest(url, {
           method: options.method,
           headers,
           body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -108,13 +118,24 @@ export function createClient(auth: LinkedInAuth): LinkedInClient {
         clearTimeout(timeout);
         lastRequestTime = Date.now();
 
+        const redirectError = classifyLinkedInRedirect(
+          response.status,
+          response.headers.get('location') ?? '',
+          url,
+        );
+        if (redirectError) {
+          throw redirectError;
+        }
+
+        const ok = response.status >= 200 && response.status < 300;
+
         // Check for challenge / restricted page (only on non-OK responses)
         const contentType = response.headers.get('content-type') ?? '';
-        if (!response.ok && contentType.includes('text/html')) {
+        if (!ok && contentType.includes('text/html')) {
           throw new ChallengeError();
         }
 
-        if (response.ok) {
+        if (ok) {
           // Some endpoints return 201 with no body
           const text = await response.text();
           if (!text) return {} as T;

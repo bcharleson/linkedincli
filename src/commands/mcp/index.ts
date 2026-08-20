@@ -16,7 +16,8 @@ Configuration for Claude Code / Cursor / Windsurf:
         "args": ["-y", "@bcharleson/linkedincli", "mcp"],
         "env": {
           "LINKEDIN_LI_AT": "your_li_at_cookie",
-          "LINKEDIN_JSESSIONID": "your_jsessionid_cookie"
+          "LINKEDIN_JSESSIONID": "your_jsessionid_cookie",
+          "LINKEDIN_HTTP": "curl-impersonate"
         }
       }
     }

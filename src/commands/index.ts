@@ -102,6 +102,8 @@ function registerCommand(parent: Command, cmdDef: CommandDefinition): void {
       const auth = await resolveAuth({
         liAt: globalOpts.liAt,
         jsessionid: globalOpts.jsessionid,
+        fromChrome: globalOpts.fromChrome,
+        chromeProfile: globalOpts.chromeProfile,
       });
       const client = createClient(auth);
 
