@@ -3,9 +3,10 @@ import { spawn } from 'node:child_process';
 /**
  * Pluggable HTTP transport. Defaults to global `fetch` (Node), but can
  * shell out to `curl_chrome123` (curl-impersonate-chrome) when
- * `LINKEDIN_HTTP=curl-impersonate` is set. That binary sends a TLS ClientHello
- * that matches real Chrome — LinkedIn's anti-abuse gates on JA3, so this is
- * what gets past the redirect-loop / session-kill wall on Voyager calls.
+ * `LINKEDIN_HTTP=curl-impersonate` is set. That binary is opt-in and
+ * local-harness only — install it on the same machine that holds the session.
+ * It sends a TLS ClientHello that matches real Chrome so Voyager calls are
+ * less likely to get the session killed.
  *
  * Redirects are never followed (fetch `redirect: 'manual'`, curl `--max-redirs 0`)
  * so expired sessions surface as 3xx instead of "redirect count exceeded".

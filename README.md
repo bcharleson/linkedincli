@@ -19,20 +19,33 @@ npx @bcharleson/linkedincli --help
 
 > **Note:** The npm package is `@bcharleson/linkedincli` but the CLI command is just **`linkedin`**.
 
+## Local harness only
+
+A **live LinkedIn session** (cookies, Chrome cookie import, Voyager API calls) must run on a **local harness only** — your own computer, such as a laptop or Mac mini.
+
+Do **not** run a live session from Grok Bot, a cloud VM, or any remote runner. Safe use from those environments is limited to:
+
+- installing the `linkedin` CLI binary, or
+- calling an MCP server that is already running on the local harness
+
+Cookies and Voyager calls never leave the local machine. Do not put `li_at` / `JSESSIONID` in a cloud or Grok Bot environment.
+
+The opt-in `--from-chrome` and `LINKEDIN_HTTP=curl-impersonate` paths are **local-only**: they read a Chrome profile and/or `curl_chrome123` on that same machine.
+
 ## Sessions keep getting killed?
 
 Default Node `fetch` has a TLS/JA3 fingerprint that is not Chrome. LinkedIn often detects that and **invalidates `li_at` on the first Voyager call** (issue [#1](https://github.com/bcharleson/linkedincli/issues/1)). Manual `li_at` + `JSESSIONID` paste still works for some accounts, but is the fragile path.
 
-Two **opt-in** workarounds (default transport remains Node `fetch`):
+Two **opt-in, local-only** workarounds (default transport remains Node `fetch`):
 
-1. **`LINKEDIN_HTTP=curl-impersonate`** — shell out to `curl_chrome123` so the TLS ClientHello matches Chrome.
-2. **`--from-chrome` / `LINKEDIN_FROM_CHROME=1`** — read the full `linkedin.com` cookie jar from a local Chrome profile (not just the two auth tokens).
+1. **`LINKEDIN_HTTP=curl-impersonate`** — on the local harness, shell out to `curl_chrome123` so the TLS ClientHello matches Chrome.
+2. **`--from-chrome` / `LINKEDIN_FROM_CHROME=1`** — on the local harness, read the full `linkedin.com` cookie jar from a local Chrome profile (not just the two auth tokens).
 
-Use them together when possible.
+Use them together on the local machine when possible.
 
-### Install curl-impersonate
+### Install curl-impersonate (local harness)
 
-The transport looks for `curl_chrome123` on `PATH` (override with `LINKEDIN_CURL_IMPERSONATE_BIN`).
+Install `curl_chrome123` on the same local machine that holds the LinkedIn session. The transport looks for it on `PATH` (override with `LINKEDIN_CURL_IMPERSONATE_BIN`).
 
 ```bash
 # Nix
@@ -55,9 +68,9 @@ export LINKEDIN_HTTP=curl-impersonate
 
 ## Quick Start
 
-### Option A — Read cookies from Chrome (recommended on macOS/Linux)
+### Option A — Read cookies from Chrome (local macOS/Linux only)
 
-If you are already logged into LinkedIn in Chrome, the CLI can decrypt cookies from the local profile. This sends the full cookie jar (not just `li_at` + `JSESSIONID`), which matches a real browser more closely.
+If you are already logged into LinkedIn in Chrome **on this machine**, the CLI can decrypt cookies from the local profile. This sends the full cookie jar (not just `li_at` + `JSESSIONID`), which matches a real browser more closely. Local-only — do not point this at a remote Chrome profile or run it from a cloud agent.
 
 ```bash
 # macOS will prompt to unlock Keychain ("Chrome Safe Storage") the first time.
@@ -96,7 +109,7 @@ Or non-interactively:
 linkedin login --li-at "AQEDxxxxxxx" --jsessionid "ajax:1234567890"
 ```
 
-Manual paste + default Node fetch may still get the session killed. Prefer Option A plus `LINKEDIN_HTTP=curl-impersonate`.
+Manual paste + default Node fetch may still get the session killed. Prefer Option A plus `LINKEDIN_HTTP=curl-impersonate` on the local harness.
 
 ### Use it
 
@@ -233,7 +246,7 @@ Every command supports these flags:
 |------|-------------|
 | `--li-at <cookie>` | Override li_at cookie |
 | `--jsessionid <cookie>` | Override JSESSIONID cookie |
-| `--from-chrome` | Read cookies from a local Chrome profile |
+| `--from-chrome` | Read cookies from a Chrome profile on this local machine |
 | `--chrome-profile <name>` | Chrome profile directory (default: `Default`) |
 | `--output pretty` | Pretty-printed JSON |
 | `--pretty` | Shorthand for `--output pretty` |
@@ -261,11 +274,11 @@ Auth resolution order: `--from-chrome` / `LINKEDIN_FROM_CHROME` → `--li-at`/`-
 
 ## MCP Server (AI Agents)
 
-All 43 commands are available as MCP tools for Claude Code, Cursor, Windsurf, and other AI agents.
+All 43 commands are available as MCP tools. The MCP process that talks to LinkedIn must run on the **local harness**. Cloud agents and Grok Bot may install the CLI binary or call this local MCP — they must not hold cookies or originate Voyager calls.
 
-### Claude Code / Cursor / Windsurf
+### Local Claude Code / Cursor / Windsurf
 
-Add to your MCP config:
+Add to the MCP config **on the local machine**:
 
 ```json
 {
@@ -296,7 +309,7 @@ Or if using `npx`:
 }
 ```
 
-Then your AI agent can manage your entire LinkedIn presence — create posts, respond to messages, manage connections, search for people, and more.
+Then a **local** AI agent can manage LinkedIn through that MCP process. Remote/cloud agents should call this local server rather than starting their own session.
 
 ## Cookie Expiration
 

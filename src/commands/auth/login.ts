@@ -21,7 +21,7 @@ export function registerLoginCommand(program: Command): void {
     .description('Store your LinkedIn session cookies (li_at + JSESSIONID) for CLI use')
     .option('--li-at <cookie>', 'li_at cookie value (from browser DevTools)')
     .option('--jsessionid <cookie>', 'JSESSIONID cookie value (from browser DevTools)')
-    .option('--from-chrome', 'Read cookies from a local Chrome profile (macOS/Linux)')
+    .option('--from-chrome', 'Read cookies from a Chrome profile on this local machine (macOS/Linux)')
     .option('--chrome-profile <name>', 'Chrome profile directory name (default: Default)')
     .option('--skip-validation', 'Save cookies without verifying them against LinkedIn')
     .action(async function (this: Command) {
@@ -108,7 +108,7 @@ export function registerLoginCommand(program: Command): void {
             output({
               message: 'Cookies saved but validation failed — they may still work',
               warning: validationErr?.message ?? String(validationErr),
-              hint: 'Default Node fetch is often fingerprinted. Retry with LINKEDIN_HTTP=curl-impersonate or --from-chrome.',
+              hint: 'Default Node fetch is often fingerprinted. On this local machine, retry with LINKEDIN_HTTP=curl-impersonate or --from-chrome.',
               config: '~/.linkedin-cli/config.json',
               validated: false,
             }, globalOpts);

@@ -7,7 +7,11 @@ export function registerMcpCommand(program: Command): void {
     .addHelpText(
       'after',
       `
-Configuration for Claude Code / Cursor / Windsurf:
+Run this MCP server on a local harness only (your computer / Mac mini).
+Cloud agents and Grok Bot may install the CLI or call this local MCP —
+they must not hold cookies or originate Voyager calls.
+
+Local Claude Code / Cursor / Windsurf config:
 
   {
     "mcpServers": {
@@ -23,7 +27,7 @@ Configuration for Claude Code / Cursor / Windsurf:
     }
   }
 
-Or if installed globally:
+Or if installed globally on the local machine:
 
   {
     "mcpServers": {

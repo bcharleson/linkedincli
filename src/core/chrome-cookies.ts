@@ -6,6 +6,8 @@ import { createDecipheriv, pbkdf2Sync } from 'node:crypto';
 
 /**
  * Reads LinkedIn cookies from Chrome's local cookie store and decrypts them.
+ * Local-harness only (the machine that owns the Chrome profile). Do not use
+ * from a cloud agent or remote runner.
  * Supports macOS and Linux. Chrome can be running — the SQLite DB is copied
  * to a temp location first so we don't fight Chrome's lock.
  *

@@ -5,25 +5,27 @@
 
 ## Authentication
 
-Before using any tool, the agent needs LinkedIn session cookies. These are stored in `~/.linkedin-cli/config.json` after running `linkedin login`, or can be set via environment variables:
+**Local harness only.** A live LinkedIn session (cookies, Chrome cookie import, Voyager API calls) must run on the operator's own computer (laptop or Mac mini). Cloud agents and Grok Bot must not set session cookies or call Voyager. Safe remote use is: install the `linkedin` CLI binary, or call an MCP server already running on the local harness. Cookies and Voyager calls never leave that machine.
+
+On the local harness, session cookies are stored in `~/.linkedin-cli/config.json` after `linkedin login`, or set via environment variables:
 
 ```
 LINKEDIN_LI_AT=<your li_at cookie>
 LINKEDIN_JSESSIONID=<your JSESSIONID cookie>
 ```
 
-Optional session-survival settings (see README). Default Node `fetch` is often TLS-fingerprinted and LinkedIn may invalidate `li_at` immediately:
+Optional **local-only** session-survival settings (see README). Default Node `fetch` is often TLS-fingerprinted and LinkedIn may invalidate `li_at` immediately:
 
 ```
-LINKEDIN_HTTP=curl-impersonate          # use curl_chrome123 (opt-in)
-LINKEDIN_CURL_IMPERSONATE_BIN=...       # override binary path
+LINKEDIN_HTTP=curl-impersonate          # local curl_chrome123 (opt-in)
+LINKEDIN_CURL_IMPERSONATE_BIN=...       # override binary path on this machine
 LINKEDIN_FROM_CHROME=1                  # read cookies from a local Chrome profile
 LINKEDIN_CHROME_PROFILE=Default         # Chrome profile directory name
 ```
 
-CLI equivalents: `--from-chrome`, `--chrome-profile <name>`.
+CLI equivalents: `--from-chrome`, `--chrome-profile <name>`. These read the local Chrome profile and must not be used from a remote runner.
 
-To check if the session is valid:
+To check if the session is valid (local harness):
 ```bash
 linkedin status --verify
 ```
