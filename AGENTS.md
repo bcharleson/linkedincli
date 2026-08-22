@@ -5,16 +5,29 @@
 
 ## Authentication
 
-Before using any tool, the agent needs LinkedIn session cookies. These are stored in `~/.linkedin-cli/config.json` after running `linkedin login`, or can be set via environment variables:
+**Local harness only.** A live LinkedIn session (cookies, Chrome cookie import, Voyager API calls) must run on the operator's own computer (laptop or Mac mini). Cloud agents and Grok Bot must not set session cookies or call Voyager. Safe remote use is: install the `linkedin` CLI binary, or call an MCP server already running on the local harness. Cookies and Voyager calls never leave that machine.
+
+On the local harness, session cookies are stored in `~/.linkedin-cli/config.json` after `linkedin login`, or set via environment variables:
 
 ```
 LINKEDIN_LI_AT=<your li_at cookie>
 LINKEDIN_JSESSIONID=<your JSESSIONID cookie>
 ```
 
-To check if the session is valid:
+Optional **local-only** session-survival settings (see README). Default Node `fetch` is often TLS-fingerprinted and LinkedIn may invalidate `li_at` immediately:
+
+```
+LINKEDIN_HTTP=curl-impersonate          # local curl_chrome123 (opt-in)
+LINKEDIN_CURL_IMPERSONATE_BIN=...       # override binary path on this machine
+LINKEDIN_FROM_CHROME=1                  # read cookies from a local Chrome profile
+LINKEDIN_CHROME_PROFILE=Default         # Chrome profile directory name
+```
+
+CLI equivalents: `--from-chrome`, `--chrome-profile <name>`. These read the local Chrome profile and must not be used from a remote runner.
+
+To check if the session is valid (local harness):
 ```bash
-linkedin status
+linkedin status --verify
 ```
 
 ---
@@ -532,16 +545,13 @@ linkedin search jobs --keywords "engineer" --location "San Francisco" --job-type
 ---
 
 #### `search_posts`
-Search for posts/content.
+Keyword post search is **unavailable**. LinkedIn's CONTENT resultType on `voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0` returns HTTP 200 with only a `FeedbackCard`. No replacement content-search `queryId` has been verified from public sources (do not invent one).
+
+For posts **by a known member**, use `profile posts` (`profileUpdatesV2`):
 ```bash
-linkedin search posts --keywords "AI trends 2026"
+linkedin profile posts ACoAABxxxxxxx --limit 20
 ```
-**Parameters:**
-| Name | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `keywords` | string | yes | — | Search keywords |
-| `limit` | number | no | 10 | Results per page (max 49) |
-| `start` | number | no | 0 | Pagination offset |
+`search posts` exits with code `SEARCH_UNAVAILABLE` and the same guidance.
 
 ---
 

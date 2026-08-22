@@ -15,6 +15,8 @@ program
   .version(pkg.version)
   .option('--li-at <cookie>', 'li_at cookie (overrides LINKEDIN_LI_AT env var and stored config)')
   .option('--jsessionid <cookie>', 'JSESSIONID cookie (overrides LINKEDIN_JSESSIONID env var and stored config)')
+  .option('--from-chrome', 'Read session cookies from a Chrome profile on this local machine (macOS/Linux)')
+  .option('--chrome-profile <name>', 'Chrome profile directory name (default: Default)')
   .option('--output <format>', 'Output format: json (default) or pretty', 'json')
   .option('--pretty', 'Shorthand for --output pretty')
   .option('--quiet', 'Suppress output, exit codes only')

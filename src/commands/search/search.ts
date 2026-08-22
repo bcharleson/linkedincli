@@ -1,5 +1,15 @@
 import { z } from 'zod';
 import type { CommandDefinition } from '../../core/types.js';
+import { LinkedInError } from '../../core/errors.js';
+
+/** Last queryId this CLI used for people/company/content SRP. CONTENT no longer returns posts. */
+export const SEARCH_CLUSTERS_QUERY_ID = 'voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0';
+
+export const SEARCH_POSTS_UNAVAILABLE_MESSAGE =
+  'linkedin search posts is unavailable: LinkedIn no longer returns CONTENT/post results for ' +
+  `${SEARCH_CLUSTERS_QUERY_ID} (HTTP 200 with only a FeedbackCard). ` +
+  'A replacement content-search queryId has not been verified from public sources. ' +
+  'For posts by a known member, use: linkedin profile posts <urn-id>';
 
 export const searchPeopleCommand: CommandDefinition = {
   name: 'search_people',
@@ -61,7 +71,7 @@ export const searchPeopleCommand: CommandDefinition = {
 
     return client.get('/graphql', {
       variables,
-      queryId: 'voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0',
+      queryId: SEARCH_CLUSTERS_QUERY_ID,
     });
   },
 };
@@ -93,7 +103,7 @@ export const searchCompaniesCommand: CommandDefinition = {
 
     return client.get('/graphql', {
       variables,
-      queryId: 'voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0',
+      queryId: SEARCH_CLUSTERS_QUERY_ID,
     });
   },
 };
@@ -158,8 +168,12 @@ export const searchPostsCommand: CommandDefinition = {
   name: 'search_posts',
   group: 'search',
   subcommand: 'posts',
-  description: 'Search for posts on LinkedIn',
-  examples: ['linkedin search posts --keywords "AI trends 2026"'],
+  description:
+    'Search for posts on LinkedIn (currently unavailable — LinkedIn CONTENT SRP no longer returns posts on the documented queryId)',
+  examples: [
+    'linkedin profile posts ACoAABxxxxxxx --limit 20',
+    'linkedin search people --keywords "AI trends"',
+  ],
 
   inputSchema: z.object({
     keywords: z.string().describe('Search keywords'),
@@ -175,14 +189,8 @@ export const searchPostsCommand: CommandDefinition = {
     ],
   },
 
-  handler: async (input, client) => {
-    const keywords = encodeURIComponent(input.keywords);
-    const variables = `(start:${input.start},origin:GLOBAL_SEARCH_HEADER,query:(keywords:${keywords},flagshipSearchIntent:SEARCH_SRP,queryParameters:List((key:resultType,value:List(CONTENT))),includeFiltersInResponse:false))`;
-
-    return client.get('/graphql', {
-      variables,
-      queryId: 'voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0',
-    });
+  handler: async () => {
+    throw new LinkedInError(SEARCH_POSTS_UNAVAILABLE_MESSAGE, 'SEARCH_UNAVAILABLE');
   },
 };
 

@@ -19,17 +19,84 @@ npx @bcharleson/linkedincli --help
 
 > **Note:** The npm package is `@bcharleson/linkedincli` but the CLI command is just **`linkedin`**.
 
+## Local harness only
+
+A **live LinkedIn session** (cookies, Chrome cookie import, Voyager API calls) must run on a **local harness only** — your own computer, such as a laptop or Mac mini.
+
+Do **not** run a live session from Grok Bot, a cloud VM, or any remote runner. Safe use from those environments is limited to:
+
+- installing the `linkedin` CLI binary, or
+- calling an MCP server that is already running on the local harness
+
+Cookies and Voyager calls never leave the local machine. Do not put `li_at` / `JSESSIONID` in a cloud or Grok Bot environment.
+
+The opt-in `--from-chrome` and `LINKEDIN_HTTP=curl-impersonate` paths are **local-only**: they read a Chrome profile and/or `curl_chrome123` on that same machine.
+
+## Sessions keep getting killed?
+
+Default Node `fetch` has a TLS/JA3 fingerprint that is not Chrome. LinkedIn often detects that and **invalidates `li_at` on the first Voyager call** (issue [#1](https://github.com/bcharleson/linkedincli/issues/1)). Manual `li_at` + `JSESSIONID` paste still works for some accounts, but is the fragile path.
+
+Two **opt-in, local-only** workarounds (default transport remains Node `fetch`):
+
+1. **`LINKEDIN_HTTP=curl-impersonate`** — on the local harness, shell out to `curl_chrome123` so the TLS ClientHello matches Chrome.
+2. **`--from-chrome` / `LINKEDIN_FROM_CHROME=1`** — on the local harness, read the full `linkedin.com` cookie jar from a local Chrome profile (not just the two auth tokens).
+
+Use them together on the local machine when possible.
+
+### Install curl-impersonate (local harness)
+
+Install `curl_chrome123` on the same local machine that holds the LinkedIn session. The transport looks for it on `PATH` (override with `LINKEDIN_CURL_IMPERSONATE_BIN`).
+
+```bash
+# Nix
+nix profile install nixpkgs#curl-impersonate-chrome
+
+# Homebrew
+brew install curl-impersonate
+
+# Confirm the binary exists
+curl_chrome123 --version
+export LINKEDIN_HTTP=curl-impersonate
+```
+
+If the binary is named differently on your platform, point at it:
+
+```bash
+export LINKEDIN_CURL_IMPERSONATE_BIN=/usr/local/bin/curl_chrome123
+export LINKEDIN_HTTP=curl-impersonate
+```
+
 ## Quick Start
 
-### 1. Get Your Cookies
+### Option A — Read cookies from Chrome (local macOS/Linux only)
+
+If you are already logged into LinkedIn in Chrome **on this machine**, the CLI can decrypt cookies from the local profile. This sends the full cookie jar (not just `li_at` + `JSESSIONID`), which matches a real browser more closely. Local-only — do not point this at a remote Chrome profile or run it from a cloud agent.
+
+```bash
+# macOS will prompt to unlock Keychain ("Chrome Safe Storage") the first time.
+# Requires the `sqlite3` CLI (preinstalled on macOS; `sudo apt install sqlite3` on Linux).
+linkedin --from-chrome profile me --pretty
+
+# Or persist the two auth tokens into ~/.linkedin-cli/config.json
+linkedin login --from-chrome
+
+# Non-default Chrome profile
+linkedin --from-chrome --chrome-profile "Profile 1" status --verify
+```
+
+Environment equivalents: `LINKEDIN_FROM_CHROME=1`, `LINKEDIN_CHROME_PROFILE=Default`. Optional: `LINKEDIN_CHROME_USER_DATA_DIR` to point at a custom user-data directory (Chrome/Chromium).
+
+Windows is not supported for `--from-chrome` (Chrome 127+ App-Bound Encryption).
+
+Cookie values are never printed to stdout/stderr.
+
+### Option B — Paste cookies manually
 
 Open LinkedIn in your browser → DevTools (`F12`) → Application → Cookies → `linkedin.com`
 
 Copy these two values:
 - **`li_at`** — your session token (long string starting with `AQED...`)
 - **`JSESSIONID`** — your session ID (starts with `ajax:`)
-
-### 2. Login
 
 ```bash
 linkedin login
@@ -42,7 +109,9 @@ Or non-interactively:
 linkedin login --li-at "AQEDxxxxxxx" --jsessionid "ajax:1234567890"
 ```
 
-### 3. Use It
+Manual paste + default Node fetch may still get the session killed. Prefer Option A plus `LINKEDIN_HTTP=curl-impersonate` on the local harness.
+
+### Use it
 
 ```bash
 # View your profile
@@ -144,7 +213,8 @@ linkedin search people --keywords "engineer" --company 1035 # At a company
 linkedin search people --title "VP Sales" --geo 103644278   # By region
 linkedin search companies --keywords "AI startups"
 linkedin search jobs --keywords "engineer" --remote --experience 4
-linkedin search posts --keywords "AI trends"
+# search posts is unavailable (LinkedIn CONTENT SRP). Use profile posts for a known author:
+linkedin profile posts ACoAABxxxxxxx --limit 20
 ```
 
 ### Companies (3 commands)
@@ -176,6 +246,8 @@ Every command supports these flags:
 |------|-------------|
 | `--li-at <cookie>` | Override li_at cookie |
 | `--jsessionid <cookie>` | Override JSESSIONID cookie |
+| `--from-chrome` | Read cookies from a Chrome profile on this local machine |
+| `--chrome-profile <name>` | Chrome profile directory (default: `Default`) |
 | `--output pretty` | Pretty-printed JSON |
 | `--pretty` | Shorthand for `--output pretty` |
 | `--quiet` | No output, exit codes only |
@@ -186,17 +258,27 @@ Every command supports these flags:
 ```bash
 export LINKEDIN_LI_AT="your_li_at_cookie"
 export LINKEDIN_JSESSIONID="your_jsessionid_cookie"
+
+# Opt-in: avoid Node fetch TLS fingerprint (requires curl_chrome123)
+export LINKEDIN_HTTP=curl-impersonate
+# export LINKEDIN_CURL_IMPERSONATE_BIN=/path/to/curl_chrome123
+
+# Opt-in: read the full LinkedIn cookie jar from Chrome
+export LINKEDIN_FROM_CHROME=1
+# export LINKEDIN_CHROME_PROFILE="Profile 1"
 ```
 
-Auth resolution order: `--li-at`/`--jsessionid` flags → env vars → `~/.linkedin-cli/config.json`
+Auth resolution order: `--from-chrome` / `LINKEDIN_FROM_CHROME` → `--li-at`/`--jsessionid` flags → env vars → `~/.linkedin-cli/config.json`
+
+`linkedin status --verify` now classifies LinkedIn 3xx login/challenge redirects as `session_valid: false` with an auth message instead of a generic network error.
 
 ## MCP Server (AI Agents)
 
-All 43 commands are available as MCP tools for Claude Code, Cursor, Windsurf, and other AI agents.
+All 43 commands are available as MCP tools. The MCP process that talks to LinkedIn must run on the **local harness**. Cloud agents and Grok Bot may install the CLI binary or call this local MCP — they must not hold cookies or originate Voyager calls.
 
-### Claude Code / Cursor / Windsurf
+### Local Claude Code / Cursor / Windsurf
 
-Add to your MCP config:
+Add to the MCP config **on the local machine**:
 
 ```json
 {
@@ -206,7 +288,8 @@ Add to your MCP config:
       "args": ["mcp"],
       "env": {
         "LINKEDIN_LI_AT": "your_li_at_cookie",
-        "LINKEDIN_JSESSIONID": "your_jsessionid_cookie"
+        "LINKEDIN_JSESSIONID": "your_jsessionid_cookie",
+        "LINKEDIN_HTTP": "curl-impersonate"
       }
     }
   }
@@ -226,15 +309,26 @@ Or if using `npx`:
 }
 ```
 
-Then your AI agent can manage your entire LinkedIn presence — create posts, respond to messages, manage connections, search for people, and more.
+Then a **local** AI agent can manage LinkedIn through that MCP process. Remote/cloud agents should call this local server rather than starting their own session.
 
 ## Cookie Expiration
 
-LinkedIn `li_at` cookies expire periodically (usually every few weeks). When your session expires:
+LinkedIn `li_at` cookies expire periodically (usually every few weeks). They can also be invalidated immediately when the client TLS fingerprint does not look like Chrome. When your session expires:
 
 ```bash
-linkedin status    # Check if session is valid
-linkedin login     # Re-authenticate with new cookies
+linkedin status --verify    # Check if session is valid
+linkedin login --from-chrome
+# or: linkedin login
+```
+
+## Search posts limitation
+
+`linkedin search posts` is **not available**. LinkedIn's CONTENT resultType on `voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0` still returns HTTP 200 but `included[]` is only a `FeedbackCard` (issue [#2](https://github.com/bcharleson/linkedincli/issues/2)). People and company search on the same queryId still work. A replacement content-search `queryId` has not been verified from public/in-repo sources, so this CLI does not invent one.
+
+For posts **by a specific member**, use `profile posts` (`identity/profileUpdatesV2`):
+
+```bash
+linkedin profile posts <urn-id> --limit 20
 ```
 
 ## Disclaimer
