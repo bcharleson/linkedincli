@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCompanyResults, parsePeopleResults, srpList } from '../src/core/srp.js';
+import { parseCompanyResults, parsePeopleResults, parseSrpNotice, srpList } from '../src/core/srp.js';
 import { searchCompaniesCommand, searchPeopleCommand } from '../src/commands/search/search.js';
 import { getDashProfile, profileViewCommand } from '../src/commands/profile/view.js';
 
@@ -135,6 +135,34 @@ describe('search handlers', () => {
     )) as { results: Array<{ universal_name: string }> };
     expect(out.results[0].universal_name).toBe('beispiel-ag');
     expect(client.calls[0].path).toBe('/search/results/companies/');
+  });
+});
+
+// Trimmed copy of the page LinkedIn served after too many searches (HTTP 200).
+const SUSPENDED_HTML = `<main id="workspace"><div data-sdui-screen="com.linkedin.sdui.flagshipnav.search.SearchResultsPeople">
+<div data-testid="lazy-column"><div><span data-dynamic-icon-loading=""></span>
+<h2>Unsere Systeme haben ungewöhnlichen Suchverkehr von Ihrem Konto erkannt</h2>
+<p>Zum Schutz der Privatsphäre unserer Mitglieder und der Systemsicherheit wurde die Suchaktivität in Ihrem Konto ausgesetzt. Versuchen Sie es später erneut.</p>
+</div></div></div></main>`;
+
+describe('search suspension', () => {
+  it('reads the notice shown instead of results', () => {
+    expect(parseSrpNotice(SUSPENDED_HTML)).toMatch(/^Unsere Systeme haben ungewöhnlichen Suchverkehr/);
+    expect(parseSrpNotice(PEOPLE_HTML)).toBeNull();
+  });
+
+  it('fails with SEARCH_RESTRICTED instead of returning 0 results', async () => {
+    await expect(
+      searchPeopleCommand.handler({ keywords: 'x', limit: 10, start: 0 }, fakeClient([SUSPENDED_HTML]) as never),
+    ).rejects.toMatchObject({ code: 'SEARCH_RESTRICTED' });
+  });
+
+  it('still returns an empty list for a plain empty page', async () => {
+    const out = (await searchPeopleCommand.handler(
+      { keywords: 'x', limit: 10, start: 0 },
+      fakeClient(['<main></main>']) as never,
+    )) as { count: number };
+    expect(out.count).toBe(0);
   });
 });
 

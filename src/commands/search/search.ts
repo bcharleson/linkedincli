@@ -4,7 +4,9 @@ import { LinkedInError } from '../../core/errors.js';
 import {
   parseCompanyResults,
   parsePeopleResults,
+  parseSrpNotice,
   srpList,
+  SEARCH_RESTRICTED_PATTERN,
   SRP_PAGE_SIZE,
   type SrpKind,
 } from '../../core/srp.js';
@@ -50,6 +52,13 @@ export async function fetchSrpPages<T>(
       throw new LinkedInError('LinkedIn search returned no HTML results page', 'SEARCH_UNAVAILABLE');
     }
     const parsed = parse(html);
+    if (parsed.length === 0) {
+      // A suspended search still answers HTTP 200 — surface it instead of "0 results"
+      const notice = parseSrpNotice(html);
+      if (notice && SEARCH_RESTRICTED_PATTERN.test(notice)) {
+        throw new LinkedInError(`LinkedIn restricted search for this account: ${notice}`, 'SEARCH_RESTRICTED');
+      }
+    }
     out.push(...parsed.slice(skip, skip + limit - out.length));
     skip = 0;
     if (parsed.length < SRP_PAGE_SIZE) break;

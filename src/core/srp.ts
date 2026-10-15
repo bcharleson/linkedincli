@@ -164,3 +164,20 @@ export function srpList(values: string | string[] | undefined): string | undefin
 }
 
 export const SRP_PAGE_SIZE = 10;
+
+/**
+ * Text of the notice LinkedIn shows instead of results (e.g. a search suspension),
+ * read from the first `<h2>` (+ following `<p>`) of the search results screen.
+ */
+export function parseSrpNotice(html: string): string | null {
+  const screen = html.search(/data-sdui-screen="[^"]*SearchResults/);
+  if (screen < 0) return null;
+  const rest = html.slice(screen);
+  const firstItem = rest.search(/role="listitem"/);
+  const m = rest.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>\s*(?:<p\b[^>]*>([\s\S]*?)<\/p>)?/);
+  if (!m || (firstItem >= 0 && (m.index ?? 0) > firstItem)) return null;
+  return [m[1], m[2]].filter(Boolean).map(stripTags).join(' ');
+}
+
+/** Notice wording when LinkedIn suspends search for an account (seen in de; en variants guessed broadly). */
+export const SEARCH_RESTRICTED_PATTERN = /ungewöhnlich|ausgesetzt|unusual|suspended|restricted/i;
