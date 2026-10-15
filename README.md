@@ -321,9 +321,15 @@ linkedin login --from-chrome
 # or: linkedin login
 ```
 
+## How search works
+
+LinkedIn retired the `voyagerSearchDashClusters` GraphQL query for web search: PEOPLE and COMPANIES now answer HTTP 400. The web app renders results server-side instead, so `search people` and `search companies` load `/search/results/people/` and `/search/results/companies/` with your session and parse the HTML (`src/core/srp.ts`). Each page holds 10 results; `--limit` above 10 loads further pages with the usual request gap.
+
+Output per person: `name`, `url`, `public_id`, `urn_id` (usable with `profile posts` / `feed user`), `degree` (1/2/3), `headline`, `location`, `insights` (e.g. mutual connections). Companies: `name`, `url`, `universal_name`, `industry`, `location`, `insights`. Text comes in the language of your LinkedIn account.
+
 ## Search posts limitation
 
-`linkedin search posts` is **not available**. LinkedIn's CONTENT resultType on `voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0` still returns HTTP 200 but `included[]` is only a `FeedbackCard` (issue [#2](https://github.com/bcharleson/linkedincli/issues/2)). People and company search on the same queryId still work. A replacement content-search `queryId` has not been verified from public/in-repo sources, so this CLI does not invent one.
+`linkedin search posts` is **not available**. The CONTENT resultType on the old queryId returned only a `FeedbackCard` (issue [#2](https://github.com/bcharleson/linkedincli/issues/2)), and the server-rendered content results page loads its posts after the initial HTML, so there is nothing reliable to parse yet.
 
 For posts **by a specific member**, use `profile posts` (`identity/profileUpdatesV2`):
 

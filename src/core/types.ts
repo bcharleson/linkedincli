@@ -77,6 +77,8 @@ export interface LinkedInClient {
     query?: Record<string, string | number | boolean | undefined>;
     body?: unknown;
     baseRequest?: boolean;
+    /** Extra/overriding request headers (e.g. `accept: text/html` for web pages) */
+    headers?: Record<string, string>;
   }): Promise<T>;
 
   get<T = unknown>(path: string, query?: Record<string, any>): Promise<T>;

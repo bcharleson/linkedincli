@@ -488,7 +488,7 @@ linkedin messaging mark-read CONVERSATION_URN_ID
 ### Search Tools
 
 #### `search_people`
-Search for people with advanced filters.
+Search for people with advanced filters. Reads LinkedIn's server-rendered results page (10 per page) and returns `{results, count, start}`; each result has `name`, `url`, `public_id`, `urn_id`, `degree`, `headline`, `location`, `insights`.
 ```bash
 linkedin search people --keywords "software engineer" --network F
 linkedin search people --title "VP Sales" --company 1035 --geo 103644278
@@ -511,7 +511,7 @@ linkedin search people --title "VP Sales" --company 1035 --geo 103644278
 ---
 
 #### `search_companies`
-Search for companies.
+Search for companies. Returns `{results, count, start}`; each result has `name`, `url`, `universal_name`, `industry`, `location`, `insights`.
 ```bash
 linkedin search companies --keywords "AI startups"
 ```
@@ -545,7 +545,7 @@ linkedin search jobs --keywords "engineer" --location "San Francisco" --job-type
 ---
 
 #### `search_posts`
-Keyword post search is **unavailable**. LinkedIn's CONTENT resultType on `voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0` returns HTTP 200 with only a `FeedbackCard`. No replacement content-search `queryId` has been verified from public sources (do not invent one).
+Keyword post search is **unavailable**. LinkedIn's CONTENT resultType on `voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0` returns HTTP 200 with only a `FeedbackCard`, and the server-rendered content results page loads posts after the initial HTML. No replacement has been verified (do not invent one).
 
 For posts **by a known member**, use `profile posts` (`profileUpdatesV2`):
 ```bash
