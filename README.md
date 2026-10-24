@@ -19,6 +19,13 @@ npx @bcharleson/linkedincli --help
 
 > **Note:** The npm package is `@bcharleson/linkedincli` but the CLI command is just **`linkedin`**.
 
+## Source and npm release status
+
+The npm latest release is currently 0.1.5. Transport selection, Chrome import,
+manual redirect diagnostics, and explicit unavailable post-search errors described
+below are on the source branch and are not included in that published release.
+Build the reviewed source to use them; a successful build is not live validation.
+
 ## Local harness only
 
 A **live LinkedIn session** (cookies, Chrome cookie import, Voyager API calls) must run on a **local harness only** — your own computer, such as a laptop or Mac mini.
@@ -52,7 +59,7 @@ Install `curl_chrome123` on the same local machine that holds the LinkedIn sessi
 nix profile install nixpkgs#curl-impersonate-chrome
 
 # Homebrew
-brew install curl-impersonate
+brew install lexiforest/tap/curl-impersonate
 
 # Confirm the binary exists
 curl_chrome123 --version
@@ -65,6 +72,36 @@ If the binary is named differently on your platform, point at it:
 export LINKEDIN_CURL_IMPERSONATE_BIN=/usr/local/bin/curl_chrome123
 export LINKEDIN_HTTP=curl-impersonate
 ```
+
+## First read-only session check (local source build)
+
+After signing into LinkedIn normally in Chrome on this computer:
+
+```bash
+npm ci
+npm run build
+LINKEDIN_HTTP=curl-impersonate node dist/index.js --from-chrome --chrome-profile "Default" status --verify
+```
+
+Replace `Default` with your Chrome profile directory (shown in `chrome://version`).
+Set `LINKEDIN_CURL_IMPERSONATE_BIN` to an installed browser wrapper if it is not named
+`curl_chrome123`. Check its `--version` locally first. For installation details see
+[the transport project's documentation](https://curl-impersonate.readthedocs.io/en/latest/install.html).
+
+This reads cookies locally into memory and makes one GET to `/voyager/api/me`,
+without automatic retries or saving imported cookies to the CLI config. macOS may
+prompt for access to Chrome Safe Storage in Keychain. It does not post, message,
+connect, or search. Cookies are sent only to LinkedIn over HTTPS; do not share them.
+`session_valid: true` requires a recognizable member response; unrecognized HTML
+or JSON yields `unknown`, and auth/challenge failures yield `false`.
+
+Stop on a restriction, challenge, auth failure, or rate limit; check the session
+in Chrome before any further testing. This check does not establish account safety
+or validate other commands. Search fixes in PR #6 are not part of this branch.
+
+On Windows, `.bat` and `.cmd` transport wrappers are rejected with an explicit
+message. An executable is required; a reliable Windows live-session configuration
+has not yet been validated. Chrome cookie import is macOS/Linux only.
 
 ## Quick Start
 

@@ -2,12 +2,13 @@ import { Command } from 'commander';
 import { saveConfig } from '../../core/config.js';
 import { createClient } from '../../core/client.js';
 import { output, outputError } from '../../core/output.js';
+import { verifiedProfile } from '../../core/session.js';
 import { resolveAuth, wantsFromChrome } from '../../core/auth.js';
 import type { GlobalOptions, LinkedInAuth } from '../../core/types.js';
 
-function sessionInvalidReason(err: { code?: string; statusCode?: number; message?: string }): string | null {
+export function sessionInvalidReason(err: { code?: string; statusCode?: number; message?: string }): string | null {
   if (err?.code === 'AUTH_ERROR' || err?.statusCode === 401) {
-    return 'Session cookies expired. Run: linkedin login';
+    return err.message ?? 'LinkedIn rejected the session. Run: linkedin login';
   }
   if (err?.code === 'CHALLENGE_ERROR') {
     return err.message ?? 'LinkedIn requires a CAPTCHA or verification challenge. Try refreshing your cookie session.';
@@ -49,7 +50,7 @@ export function registerLoginCommand(program: Command): void {
 
         // Interactive mode if cookies not provided as flags and not reading Chrome
         if (!fromChrome && (!liAt || !jsessionid)) {
-          const { input: promptInput } = await import('@inquirer/prompts');
+          const { password: promptInput } = await import('@inquirer/prompts');
 
           if (!liAt) {
             liAt = await promptInput({
@@ -81,8 +82,9 @@ export function registerLoginCommand(program: Command): void {
           try {
             const client = createClient(
               chromeAuth ?? { liAt, jsessionid },
+              { maxRetries: 0 },
             );
-            const me = await client.get<any>('/me');
+            const me = verifiedProfile(await client.get<unknown>('/me'));
             const profileName = [me?.firstName, me?.lastName].filter(Boolean).join(' ') || 'Unknown';
             const profileUrn = me?.entityUrn ?? me?.publicIdentifier ?? '';
 
@@ -191,9 +193,10 @@ export function registerStatusCommand(program: Command): void {
           fromChrome: globalOpts.fromChrome,
           chromeProfile: globalOpts.chromeProfile,
         });
-        const client = createClient(auth);
+        // Session verification is one GET, with no automatic retries.
+        const client = createClient(auth, { maxRetries: 0 });
         try {
-          const me = await client.get<any>('/me');
+          const me = verifiedProfile(await client.get<unknown>('/me'));
           const name = [me?.firstName, me?.lastName].filter(Boolean).join(' ');
           output({
             logged_in: true,

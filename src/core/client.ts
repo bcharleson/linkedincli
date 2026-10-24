@@ -31,7 +31,8 @@ export function generateTrackingId(): string {
   return Buffer.from(bytes).toString('base64');
 }
 
-export function createClient(auth: LinkedInAuth): LinkedInClient {
+export function createClient(auth: LinkedInAuth, options: { maxRetries?: number } = {}): LinkedInClient {
+  const maxRetries = options.maxRetries ?? MAX_RETRIES;
   const csrfToken = auth.jsessionid.replace(/"/g, '');
 
   const cookieHeader =
@@ -98,7 +99,7 @@ export function createClient(auth: LinkedInAuth): LinkedInClient {
 
     let lastError: Error | undefined;
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
         // Use human-like random delay between retries instead of fixed backoff
         await randomDelay();
@@ -167,14 +168,14 @@ export function createClient(auth: LinkedInAuth): LinkedInClient {
             throw new ValidationError(errorMessage);
           case 429: {
             const retryAfter = Number(response.headers.get('retry-after')) || undefined;
-            if (attempt < MAX_RETRIES) {
+            if (attempt < maxRetries) {
               lastError = new RateLimitError(errorMessage, retryAfter);
               continue;
             }
             throw new RateLimitError(errorMessage, retryAfter);
           }
           default:
-            if (response.status >= 500 && attempt < MAX_RETRIES) {
+            if (response.status >= 500 && attempt < maxRetries) {
               lastError = new ServerError(errorMessage, response.status);
               continue;
             }
@@ -194,19 +195,19 @@ export function createClient(auth: LinkedInAuth): LinkedInClient {
         }
         if (error instanceof TypeError && error.message.includes('fetch')) {
           lastError = new LinkedInError('Network error: unable to connect', 'NETWORK_ERROR');
-          if (attempt < MAX_RETRIES) continue;
+          if (attempt < maxRetries) continue;
         }
         if (error instanceof DOMException && error.name === 'AbortError') {
           lastError = new LinkedInError('Request timed out', 'TIMEOUT');
           // Don't retry write timeouts
-          if (options.method !== 'GET' || attempt >= MAX_RETRIES) {
+          if (options.method !== 'GET' || attempt >= maxRetries) {
             throw lastError;
           }
           continue;
         }
         if (error instanceof Error && !(error instanceof LinkedInError)) {
           lastError = error;
-          if (attempt < MAX_RETRIES) continue;
+          if (attempt < maxRetries) continue;
         }
         throw error;
       }

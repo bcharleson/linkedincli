@@ -42,6 +42,12 @@ export async function httpRequest(url: string, init: HttpRequestInit): Promise<H
 
 const CURL_BIN = process.env.LINKEDIN_CURL_IMPERSONATE_BIN ?? 'curl_chrome123';
 
+export function validateCurlExecutable(binary: string, platform: NodeJS.Platform = process.platform): void {
+  if (platform === 'win32' && /\.(bat|cmd)$/i.test(binary)) {
+    throw new Error('LINKEDIN_CURL_IMPERSONATE_BIN must point to an executable on Windows; .bat/.cmd wrappers are not supported. A working Windows session has not been validated.');
+  }
+}
+
 function curlImpersonateRequest(url: string, init: HttpRequestInit): Promise<HttpResponse> {
   return new Promise((resolve, reject) => {
     const args: string[] = [
@@ -75,6 +81,8 @@ function curlImpersonateRequest(url: string, init: HttpRequestInit): Promise<Htt
       args.push('--data-binary', '@-');
     }
     args.push(url);
+
+    validateCurlExecutable(CURL_BIN);
 
     const child = spawn(CURL_BIN, args, { stdio: ['pipe', 'pipe', 'pipe'] });
 
