@@ -95,6 +95,18 @@ connect, or search. Cookies are sent only to LinkedIn over HTTPS; do not share t
 `session_valid: true` requires a recognizable member response; unrecognized HTML
 or JSON yields `unknown`, and auth/challenge failures yield `false`.
 
+For Chrome Beta, point at its separate data directory and use the profile shown
+in `chrome://version`:
+
+```bash
+LINKEDIN_CHROME_USER_DATA_DIR="$HOME/Library/Application Support/Google/Chrome Beta" \
+LINKEDIN_HTTP=curl-impersonate node dist/index.js --from-chrome --chrome-profile Default status --verify
+```
+
+Imported cookies stay in memory; the curl transport passes private headers through
+stdin rather than process arguments. Manual `login` deliberately persists the two
+auth tokens, so use `status --verify --from-chrome` for a non-persistent check.
+
 Stop on a restriction, challenge, auth failure, or rate limit; check the session
 in Chrome before any further testing. This check does not establish account safety
 or validate other commands. Search fixes in PR #6 are not part of this branch.

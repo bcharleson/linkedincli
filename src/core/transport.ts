@@ -61,6 +61,8 @@ function curlImpersonateRequest(url: string, init: HttpRequestInit): Promise<Htt
       '--max-time',
       '30',
     ];
+    const config: string[] = [];
+    const quoteConfig = (value: string) => JSON.stringify(value);
     for (const [name, value] of Object.entries(init.headers)) {
       // curl-impersonate already sets sec-ch-ua, user-agent, sec-fetch-*, etc.
       // Skip any we redundantly set so we don't override the Chrome-matching
@@ -75,12 +77,14 @@ function curlImpersonateRequest(url: string, init: HttpRequestInit): Promise<Htt
       ) {
         continue;
       }
-      args.push('-H', `${name}: ${value}`);
+      if (/[\r\n]/.test(name + value)) throw new Error('HTTP headers must not contain line breaks');
+      config.push(`header = ${quoteConfig(`${name}: ${value}`)}`);
     }
     if (init.body !== undefined) {
-      args.push('--data-binary', '@-');
+      config.push(`data-binary = ${quoteConfig(init.body)}`);
     }
-    args.push(url);
+    // Cookie headers belong on stdin, never in process-list-visible argv.
+    args.push('--config', '-', url);
 
     validateCurlExecutable(CURL_BIN);
 
@@ -135,10 +139,8 @@ function curlImpersonateRequest(url: string, init: HttpRequestInit): Promise<Htt
       }
     });
 
-    if (init.body !== undefined) {
-      child.stdin.write(init.body);
-    }
-    child.stdin.end();
+    child.stdin.on('error', () => { /* child error/close supplies diagnostics */ });
+    child.stdin.end(config.join('\n') + '\n');
   });
 }
 
