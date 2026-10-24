@@ -1,7 +1,81 @@
-# AGENTS.md — LinkedIn CLI Tool Reference for AI Agents
+# AGENTS.md — LinkedIn CLI Agent Guide
 
-> This file documents every tool available in the LinkedIn CLI / MCP server.
+> This is the shared entry point for repository development guidance and the LinkedIn CLI / MCP tool reference.
 > AI agents (Claude Code, Cursor, Windsurf, OpenClaw, etc.) should use this as the authoritative reference for managing LinkedIn.
+
+## Repository Development
+
+The CLI and MCP server use the same `CommandDefinition` objects as their single
+source of truth. TypeScript uses strict mode and ESM; Commander.js powers the CLI,
+Zod v4 defines input schemas, and the MCP SDK exposes the tools. tsup bundles the
+CLI and MCP entry points. `package.json` declares Node.js 18+; check dependency
+engine requirements when choosing a runtime.
+
+### Architecture
+
+```text
+src/
+├── index.ts                 # CLI entry (Commander.js)
+├── mcp.ts                   # Standalone MCP entry (stdio)
+├── core/
+│   ├── types.ts             # CommandDefinition and LinkedInClient interfaces
+│   ├── client.ts            # Voyager requests, cookie/CSRF headers, retries
+│   ├── transport.ts         # Node fetch and optional local curl transport
+│   ├── redirects.ts         # Auth/challenge redirect classification
+│   ├── handler.ts           # executeCommand(): endpoint/field mappings
+│   ├── auth.ts              # resolveAuth(): Chrome, flags, env, config
+│   ├── chrome-cookies.ts    # Local Chrome cookie import
+│   ├── config.ts            # ~/.linkedin-cli/config.json manager
+│   ├── errors.ts            # Typed errors
+│   └── output.ts            # JSON, --fields, --quiet
+├── commands/
+│   ├── index.ts             # allCommands registry and registerAllCommands()
+│   ├── auth/login.ts        # Special login, logout, status commands
+│   ├── mcp/index.ts         # MCP start command
+│   ├── profile/view.ts      # Profile commands
+│   ├── posts/create.ts      # Create, edit, delete posts
+│   ├── feed/feed.ts         # Member/company feeds
+│   ├── engage/engage.ts     # Reactions, comments, reposts
+│   ├── connections/         # Connection invitations and removal
+│   ├── messaging/           # Conversations and messages
+│   ├── search/search.ts     # People, companies, jobs, post-search limitation
+│   ├── companies/           # Company profiles and following
+│   ├── jobs/                # Job details and skill insights
+│   └── analytics/           # Profile-view analytics
+└── mcp/server.ts            # MCP tool registration loop
+```
+
+### Adding a Command
+
+1. Add a `CommandDefinition` in the appropriate `src/commands/{group}/` module.
+2. Include it in that module's exported command array. For a new group, also
+   import and spread its array into `allCommands` in `src/commands/index.ts`.
+3. Existing registries expose the definition to both CLI and MCP.
+4. Update the tool reference and README as needed, and verify changed behavior.
+
+Use `npm test`, `npm run typecheck`, and `npm run build` for offline validation.
+Passing these checks does not establish live LinkedIn functionality or session
+safety. Live tests require explicit operator authorization and the local-harness
+boundary below; never use real session cookies in fixtures or test output.
+
+### Conventions
+
+- Command results go to stdout as compact JSON by default; `--pretty` indents.
+- CLI errors go to stderr as `{error, code}` JSON by default; pretty mode uses
+  readable error text.
+- Only `login` uses interactive prompts; API commands must remain noninteractive.
+- `executeCommand()` substitutes `{field}` path parameters using endpoint field
+  mappings. Custom handlers can build requests directly.
+- CLI flags use kebab-case; command input fields use snake_case.
+- The default API base is `https://www.linkedin.com/voyager/api`; `baseRequest`
+  selects `https://www.linkedin.com` for web endpoints.
+- Auth resolution prefers explicitly requested Chrome import, then CLI cookie
+  flags, environment variables, and finally `~/.linkedin-cli/config.json`.
+- The client classifies auth/challenge redirects and retries some failures.
+  Delays and browser-like transport do not establish account safety. Inspect
+  `src/core/client.ts` for current pacing/retry behavior before changing it.
+
+---
 
 ## Authentication
 
@@ -644,9 +718,9 @@ linkedin profile me --quiet             # No output, exit code only
 ## Rate Limiting
 
 LinkedIn has aggressive rate limiting. The client automatically:
-- Enforces minimum 1-second gaps between requests
-- Retries on 429 (rate limit) and 5xx errors with exponential backoff
-- Detects CAPTCHA/challenge pages and throws a clear error
+- Uses a 2-second minimum gap within a client instance (not a global concurrency limit)
+- Retries 429 (rate limit) and 5xx errors with randomized 2–5-second delays
+- Classifies auth/challenge redirects and non-success HTML responses as errors; this does not cover every possible HTTP 200 challenge page
 
 For bulk operations, add your own delays between calls.
 
