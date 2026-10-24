@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { httpRequest, parseRawHttpResponse, useCurlImpersonate } from '../src/core/transport.js';
+import { httpRequest, parseRawHttpResponse, useCurlImpersonate, validateCurlExecutable } from '../src/core/transport.js';
 
 describe('parseRawHttpResponse', () => {
   it('parses a 302 with CRLF headers and no body', async () => {
@@ -77,3 +77,10 @@ describe('httpRequest', () => {
     }
   });
 });
+
+ it('rejects Windows batch wrappers without invoking a shell', () => {
+   expect(() => validateCurlExecutable('C:\\tools\\curl_chrome123.BAT', 'win32')).toThrow(/executable on Windows/);
+   expect(() => validateCurlExecutable('curl.cmd', 'win32')).toThrow(/executable on Windows/);
+   expect(() => validateCurlExecutable('curl.exe', 'win32')).not.toThrow();
+   expect(() => validateCurlExecutable('/usr/local/bin/curl_chrome123', 'darwin')).not.toThrow();
+ });
