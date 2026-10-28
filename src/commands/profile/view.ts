@@ -1,5 +1,20 @@
 import { z } from 'zod';
-import type { CommandDefinition } from '../../core/types.js';
+import type { CommandDefinition, LinkedInClient } from '../../core/types.js';
+
+/**
+ * LinkedIn retired `/identity/profiles/{id}/profileView` and `/skills` (HTTP 410).
+ * The dash profile endpoint accepts a public id or a profile URN id (ACoA…).
+ */
+export const FULL_PROFILE_DECORATION =
+  'com.linkedin.voyager.dash.deco.identity.profile.FullProfileWithEntities-93';
+
+export function getDashProfile<T = unknown>(client: LinkedInClient, id: string): Promise<T> {
+  return client.get<T>('/identity/dash/profiles', {
+    q: 'memberIdentity',
+    memberIdentity: id.replace(/^urn:li:fsd?_profile:/, ''),
+    decorationId: FULL_PROFILE_DECORATION,
+  });
+}
 
 export const profileViewCommand: CommandDefinition = {
   name: 'profile_view',
@@ -12,16 +27,14 @@ export const profileViewCommand: CommandDefinition = {
   ],
 
   inputSchema: z.object({
-    public_id: z.string().describe('Public profile identifier (the URL slug)'),
+    public_id: z.string().describe('Public profile identifier (the URL slug) or profile URN id (ACoA…)'),
   }),
 
   cliMappings: {
     args: [{ field: 'public_id', name: 'public-id', required: true }],
   },
 
-  handler: async (input, client) => {
-    return client.get(`/identity/profiles/${encodeURIComponent(input.public_id)}/profileView`);
-  },
+  handler: async (input, client) => getDashProfile(client, input.public_id),
 };
 
 export const profileMeCommand: CommandDefinition = {
@@ -82,10 +95,11 @@ export const profileSkillsCommand: CommandDefinition = {
   },
 
   handler: async (input, client) => {
-    return client.get(`/identity/profiles/${encodeURIComponent(input.public_id)}/skills`, {
-      count: input.limit,
-      start: 0,
-    });
+    const profile = await getDashProfile<{ included?: Array<Record<string, unknown>> }>(client, input.public_id);
+    const skills = (profile.included ?? []).filter((e) =>
+      String(e.$type ?? '').endsWith('.Skill'),
+    );
+    return { skills: skills.slice(0, input.limit), count: Math.min(skills.length, input.limit) };
   },
 };
 

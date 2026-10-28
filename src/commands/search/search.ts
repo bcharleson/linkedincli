@@ -1,8 +1,21 @@
 import { z } from 'zod';
-import type { CommandDefinition } from '../../core/types.js';
+import type { CommandDefinition, LinkedInClient } from '../../core/types.js';
 import { LinkedInError } from '../../core/errors.js';
+import {
+  parseCompanyResults,
+  parsePeopleResults,
+  parseSrpNotice,
+  srpList,
+  SEARCH_RESTRICTED_PATTERN,
+  SRP_PAGE_SIZE,
+  type SrpKind,
+} from '../../core/srp.js';
 
-/** Last queryId this CLI used for people/company/content SRP. CONTENT no longer returns posts. */
+/**
+ * Last GraphQL queryId this CLI used for SRP. LinkedIn retired it: PEOPLE/COMPANIES
+ * now answer HTTP 400 and CONTENT returns only a FeedbackCard. People and company
+ * search read the server-rendered results page instead (see core/srp.ts).
+ */
 export const SEARCH_CLUSTERS_QUERY_ID = 'voyagerSearchDashClusters.b0928897b71bd00a5a7291755dcd64f0';
 
 export const SEARCH_POSTS_UNAVAILABLE_MESSAGE =
@@ -10,6 +23,49 @@ export const SEARCH_POSTS_UNAVAILABLE_MESSAGE =
   `${SEARCH_CLUSTERS_QUERY_ID} (HTTP 200 with only a FeedbackCard). ` +
   'A replacement content-search queryId has not been verified from public sources. ' +
   'For posts by a known member, use: linkedin profile posts <urn-id>';
+
+/**
+ * Load `/search/results/<kind>/` pages (10 results each) until `limit` results
+ * starting at `start` are collected or a page comes back short.
+ */
+export async function fetchSrpPages<T>(
+  client: LinkedInClient,
+  kind: SrpKind,
+  start: number,
+  limit: number,
+  params: Record<string, string | undefined>,
+  parse: (html: string) => T[],
+): Promise<T[]> {
+  const out: T[] = [];
+  let page = Math.floor(start / SRP_PAGE_SIZE) + 1;
+  let skip = start % SRP_PAGE_SIZE;
+
+  while (out.length < limit) {
+    const html = await client.request<string>({
+      method: 'GET',
+      path: `/search/results/${kind}/`,
+      query: { ...params, origin: 'GLOBAL_SEARCH_HEADER', page: page > 1 ? page : undefined },
+      baseRequest: true,
+      headers: { accept: 'text/html,application/xhtml+xml' },
+    });
+    if (typeof html !== 'string') {
+      throw new LinkedInError('LinkedIn search returned no HTML results page', 'SEARCH_UNAVAILABLE');
+    }
+    const parsed = parse(html);
+    if (parsed.length === 0) {
+      // A suspended search still answers HTTP 200 — surface it instead of "0 results"
+      const notice = parseSrpNotice(html);
+      if (notice && SEARCH_RESTRICTED_PATTERN.test(notice)) {
+        throw new LinkedInError(`LinkedIn restricted search for this account: ${notice}`, 'SEARCH_RESTRICTED');
+      }
+    }
+    out.push(...parsed.slice(skip, skip + limit - out.length));
+    skip = 0;
+    if (parsed.length < SRP_PAGE_SIZE) break;
+    page++;
+  }
+  return out;
+}
 
 export const searchPeopleCommand: CommandDefinition = {
   name: 'search_people',
@@ -53,26 +109,18 @@ export const searchPeopleCommand: CommandDefinition = {
   },
 
   handler: async (input, client) => {
-    const filters: string[] = ['(key:resultType,value:List(PEOPLE))'];
-
-    if (input.network) filters.push(`(key:network,value:List(${input.network}))`);
-    if (input.company) filters.push(`(key:currentCompany,value:List(${input.company}))`);
-    if (input.industry) filters.push(`(key:industry,value:List(${input.industry}))`);
-    if (input.school) filters.push(`(key:schools,value:List(${input.school}))`);
-    if (input.title) filters.push(`(key:title,value:List(${encodeURIComponent(input.title)}))`);
-    if (input.first_name) filters.push(`(key:firstName,value:List(${encodeURIComponent(input.first_name)}))`);
-    if (input.last_name) filters.push(`(key:lastName,value:List(${encodeURIComponent(input.last_name)}))`);
-    if (input.geo) filters.push(`(key:geoUrn,value:List(${input.geo}))`);
-
-    const queryParams = `List(${filters.join(',')})`;
-    const keywords = input.keywords ? encodeURIComponent(input.keywords) : '';
-
-    const variables = `(start:${input.start},origin:GLOBAL_SEARCH_HEADER,query:(keywords:${keywords},flagshipSearchIntent:SEARCH_SRP,queryParameters:${queryParams},includeFiltersInResponse:false))`;
-
-    return client.get('/graphql', {
-      variables,
-      queryId: SEARCH_CLUSTERS_QUERY_ID,
-    });
+    const results = await fetchSrpPages(client, 'people', input.start, input.limit, {
+      keywords: input.keywords,
+      network: srpList(input.network),
+      currentCompany: srpList(input.company),
+      industry: srpList(input.industry),
+      schoolFilter: srpList(input.school),
+      geoUrn: srpList(input.geo?.replace(/^urn:li:(fs_)?geo:/, '')),
+      title: input.title,
+      firstName: input.first_name,
+      lastName: input.last_name,
+    }, parsePeopleResults);
+    return { results, count: results.length, start: input.start };
   },
 };
 
@@ -98,13 +146,10 @@ export const searchCompaniesCommand: CommandDefinition = {
   },
 
   handler: async (input, client) => {
-    const keywords = encodeURIComponent(input.keywords);
-    const variables = `(start:${input.start},origin:GLOBAL_SEARCH_HEADER,query:(keywords:${keywords},flagshipSearchIntent:SEARCH_SRP,queryParameters:List((key:resultType,value:List(COMPANIES))),includeFiltersInResponse:false))`;
-
-    return client.get('/graphql', {
-      variables,
-      queryId: SEARCH_CLUSTERS_QUERY_ID,
-    });
+    const results = await fetchSrpPages(client, 'companies', input.start, input.limit, {
+      keywords: input.keywords,
+    }, parseCompanyResults);
+    return { results, count: results.length, start: input.start };
   },
 };
 

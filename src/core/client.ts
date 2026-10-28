@@ -68,6 +68,7 @@ export function createClient(auth: LinkedInAuth): LinkedInClient {
     query?: Record<string, string | number | boolean | undefined>;
     body?: unknown;
     baseRequest?: boolean;
+    headers?: Record<string, string>;
   }): Promise<T> {
     // Rate limit: ensure minimum gap between requests
     const now = Date.now();
@@ -90,7 +91,7 @@ export function createClient(auth: LinkedInAuth): LinkedInClient {
       if (qs) url += `?${qs}`;
     }
 
-    const headers: Record<string, string> = { ...baseHeaders };
+    const headers: Record<string, string> = { ...baseHeaders, ...options.headers };
     if (options.body !== undefined) {
       headers['content-type'] = 'application/json; charset=UTF-8';
       headers['origin'] = LINKEDIN_BASE;
